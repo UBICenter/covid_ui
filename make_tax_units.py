@@ -25,14 +25,13 @@ ipum.columns = ipum.columns.str.lower()
 
 # /* Set missing income items to zero so that non-filers etc will get zeroes.*/
 # find out what statatax is and get it
-VARS1 = ['eitcred', 'fedretir']
 VARS2 = ['fedtax', 'statetax', 'adjginc', 'taxinc', 'fedtaxac', 'fica',
          'caploss', 'stataxac', 'incdivid', 'incint', 'incrent', 'incother',
          'incalim', 'incasist', 'incss', 'incwelfr', 'incwkcom', 'incvet',
          'incchild', 'incunemp', 'inceduc', 'gotveduc', 'gotvothe', 'gotvpens',
          'gotvsurv', 'incssi']
 VARS3 = ['incwage', 'incbus', 'incfarm', 'incsurv', 'incdisab', 'incretir']
-vars = VARS1 + VARS2 + VARS3
+vars = VARS2 + VARS3
 
 
 # these are the missing codes
