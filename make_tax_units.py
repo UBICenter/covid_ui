@@ -15,16 +15,15 @@ pexemp = pd.DataFrame({
 # gotta get 1999 thru 2009
 pexemp = pexemp[pexemp.year.between(1998, 2010)]
 
-
-ipum = pd.read_csv('~/MaxGhenis/datarepo/pppub19.csv.gz')
+ipum = pd.read_csv('~/UBICenter/covid_ui/asec_2019_ipums.csv.gz')
+# ipum = pd.read_csv('~/MaxGhenis/datarepo/asec_2019_ipums.csv.gz')
 # set to lower case
 ipum.columns = ipum.columns.str.lower()
 
 # /* Set missing income items to zero so that non-filers etc will get zeroes.*/
 # find out what statatax is and get it
-VARS1 = ['eit_cred', 'fed_ret']
-VARS2 = ['fedtax_ac', 'fedtax_bc', 'statetax_a', 'statetax_b' 'adjginc',
-         'taxinc', 'fedtaxac', 'fica',
+VARS1 = ['eitcred', 'fedretir']
+VARS2 = ['fedtax', 'statetax', 'adjginc', 'taxinc', 'fedtaxac', 'fica',
          'caploss', 'stataxac', 'incdivid', 'incint', 'incrent', 'incother',
          'incalim', 'incasist', 'incss', 'incwelfr', 'incwkcom', 'incvet',
          'incchild', 'incunemp', 'inceduc', 'gotveduc', 'gotvothe', 'gotvpens',
@@ -39,7 +38,7 @@ MISSING_CODES = [9999, 99999, 999999, 9999999,
                  9997, 99997, 999997, 9999997]
 
 for var in vars:
-    ipum[var] = np.where(ipum[var].isna() or ipum[var].isin(MISSING_CODES), 0,
+    ipum[var] = np.where(ipum[var].isna() | ipum[var].isin(MISSING_CODES), 0,
                          ipum[var])
 
 # set 0's to NA for location
@@ -66,15 +65,15 @@ ipum.loc[ipum.relate == 1114, 'sploc'] = np.nan
 # x6 is just age for now
 ipum['x6'] = np.where(ipum.sploc.isna() | 
                       ((ipum.sploc > 0) & (ipum.sploc > ipum.pernum)),
-                      ipum.age, 0
+                      ipum.age, 0)
 ipum['x24'] = np.where(~ipum.sploc.isna() & (ipum.sploc > 0) & 
                        (ipum.sploc < ipum.pernum), ipum.age, 0)
 
 
 # primary wage or spouse wage
 ipum['incwagebusfarm'] = ipum[['incwage', 'incbus', 'incfarm']].sum(axis=1)
-ipum['x7'] = np.where((ipum.sploc.isna() | 
-                      ((ipum.sploc > 0) & (ipum.sploc > ipum.pernum)), 
+ipum['x7'] = np.where(ipum.sploc.isna() | 
+                      ((ipum.sploc > 0) & (ipum.sploc > ipum.pernum)),
                       ipum.incwagebusfarm, 0)
 ipum['x8'] = ipum.incwagebusfarm - ipum.x7
 
@@ -152,7 +151,7 @@ ipum['deprel'] = np.where((ipum.depstat > 0) & (ipum.depchild == 0), 1, 0)
 ipum['dep13'] = np.where(((ipum.deprel == 1) | (ipum.depchild == 1)) & 
                          (ipum.age < 13), 1, 0)
 ipum['dep17'] = np.where(((ipum.deprel == 1) | (ipum.depchild == 1)) & 
-                         (ipum$age < 17), 1, 0)
+                         (ipum.age < 17), 1, 0)
 ipum['dep18'] = np.where(((ipum.deprel == 1) | (ipum.depchild == 1)) & 
                          (ipum.age < 18), 1, 0)
 
@@ -202,11 +201,11 @@ concat = concat[(concat.x19 >= 0) & (concat.x4) > 0]
 
 concat = concat[['x' + str(i) for i in range(1, 31)]]
 
-concat.columns = [('taxsimid', 'year', 'state', 'mstat', 'depx', 'page',
-                   'pwages', 'swages', 'dividends', 'otherprop', 'pensions',
-                   'gssi', 'transfers', 'rentpaid', 'proptax', 'otheritem',
-                   'childcare', 'ui', 'depchild', 'mortgage', 'stcg', 'ltcg',
-                   'dep13', 'sage', 'dep17', 'dep18', 'intrec', 'nonprop',
-                   'serial', 'pernum')
+concat.columns = ['taxsimid', 'year', 'state', 'mstat', 'depx', 'page',
+                  'pwages', 'swages', 'dividends', 'otherprop', 'pensions',
+                  'gssi', 'transfers', 'rentpaid', 'proptax', 'otheritem',
+                  'childcare', 'ui', 'depchild', 'mortgage', 'stcg', 'ltcg',
+                  'dep13', 'sage', 'dep17', 'dep18', 'intrec', 'nonprop',
+                  'serial', 'pernum']
 
 ids = concat[['taxsimid', 'serial', 'pernum']]
