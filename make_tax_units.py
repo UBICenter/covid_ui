@@ -1,144 +1,96 @@
-# Author: Sam Portnow
-# https://users.nber.org/~taxsim/to-taxsim/cps/cps-portnow/TaxSimRScriptForDan.R
-# October 3, 2016
-# This file is for reading in the cps data
-# and filtering the variables I need for taxism
-# amended script to do all the processing after binding
+""" Makes tax units from the ASEC.
 
-library(foreign)
-library(plyr)
-library(psych)
-library(maps)
-library(RCurl)
-library(dplyr)
-library(ggplot2)
+Based on Sam Portnow's code at 
+https://users.nber.org/~taxsim/to-taxsim/cps/cps-portnow/TaxSimRScriptForDan.R
+"""
+import numpy as np
+import pandas as pd
 
 # personal exemptions
 
-pexemp <- data.frame(year=1960:2013, pexemp = c(600,600,600,600,600,600,600,600,600,600,
-                                                625,675,750,750,750,750,750,750,750, 1000,
-                                                1000,1000,1000,1000,1000,1040,1080,1900,1950,2000,
-                                                2050,2150,2300,2350,2450,2500,2550,2650,2700,2750,
-                                                2800,2900,3000,3050,3100,3200,3300,3400,3500,3650,
-                                                3750,3750,3750,3750))
-pexemp
+pexemp <- pd.DataFrame({
+  'year': np.arange(1960, 2014)
+  'pexemp': [600,600,600,600,600,600,600,600,600,600,625,675,750,750,750,750,
+             750,750,750, 1000,1000,1000,1000,1000,1000,1040,1080,1900,1950,
+             2000,2050,2150,2300,2350,2450,2500,2550,2650,2700,2750,2800,2900,
+             3000,3050,3100,3200,3300,3400,3500,3650,3750,3750,3750,3750]})
+
 # gotta get 1999 thru 2009
-pexemp <- pexemp[pexemp$year > 1998 & pexemp$year < 2010,]
+pexemp = pexemp[pexemp.year.between(1998, 2010)]
 
 
-setwd('~/Dropbox/PhD/Diss/Analyses/ECLS-B')
-
-ipum <- read.spss('./CPS/cps01_09.sav', to.data.frame=T, use.missings = T, use.value.labels = F)
+ipum = pd.read_csv('~/MaxGhenis/datarepo/pppub19.csv.gz')
 # set to lower case
-names(ipum) <- tolower(names(ipum))
+ipum.columns = ipum.columns.str.lower()
 
 # /* Set missing income items to zero so that non-filers etc will get zeroes.*/
 # find out what statatax is and get it
-vars1 <- c('eitcred', 'fedretir')
-vars2 <- c('fedtax', 'statetax', 'adjginc', 'taxinc', 'fedtaxac', 'fica',
-           'caploss', 'stataxac',
-           'incdivid', 'incint',   'incrent',   'incother', 'incalim',  'incasist',
-           'incss',    'incwelfr', 'incwkcom',  'incvet',   'incchild', 'incunemp',
-           'inceduc',  'gotveduc', 'gotvothe',  'gotvpens', 'gotvsurv', 'incssi')
-vars3 <- c('incwage', 'incbus', 'incfarm', 'incsurv', 'incdisab', 'incretir')
-vars <- c(vars1, vars2, vars3)
+VARS1 = ['eitcred', 'fedretir']
+VARS2 = ['fedtax', 'statetax', 'adjginc', 'taxinc', 'fedtaxac', 'fica',
+         'caploss', 'stataxac', 'incdivid', 'incint', 'incrent', 'incother',
+         'incalim', 'incasist', 'incss', 'incwelfr', 'incwkcom', 'incvet',
+         'incchild', 'incunemp', 'inceduc', 'gotveduc', 'gotvothe', 'gotvpens',
+         'gotvsurv', 'incssi']
+VARS3 <- ['incwage', 'incbus', 'incfarm', 'incsurv', 'incdisab', 'incretir']
+vars <- VARS1 + VARS2 + VARS3 + ['capgain']
 
 
 # these are the missing codes
-ipum[,vars][is.na(ipum[,vars])] <- 0
-ipum[,vars][ipum[,vars] == 9999] <- 0
-ipum[,vars][ipum[,vars] == 99999] <- 0
-ipum[,vars][ipum[,vars] == 999999] <- 0
-ipum[,vars][ipum[,vars] == 9999999] <- 0
+MISSING_CODES = [9999, 99999, 999999, 9999999,
+                 -9999, -99999, -999999, -9999999,
+                 9997, 99997, 999997, 9999997]
 
-ipum[,vars][is.na(ipum[,vars])] <- 0
-ipum[,vars][ipum[,vars] == -9999] <- 0
-ipum[,vars][ipum[,vars] == -99999] <- 0
-ipum[,vars][ipum[,vars] == -999999] <- 0
-ipum[,vars][ipum[,vars] == -9999999] <- 0
-
-
-ipum[,vars][ipum[,vars] == 9997] <- 0
-ipum[,vars][ipum[,vars] == 99997] <- 0
-ipum[,vars][ipum[,vars] == 999997] <- 0
-ipum[,vars][ipum[,vars] == 9999997] <- 0
-
-library(psych)
-
-
-# more missing codes
-
-vars <- 'capgain' 
-
-ipum[,vars][is.na(ipum[,vars])] <- -999
-ipum[,vars][ipum[,vars] == 9999] <- -999
-ipum[,vars][ipum[,vars] == 99999] <- -999
-ipum[,vars][ipum[,vars] == 999999] <- -999
-ipum[,vars][ipum[,vars] == 9999999] <- -999
-
-ipum[,vars][ipum[,vars] == -9999] <- -999
-ipum[,vars][ipum[,vars] == -99999] <- -999
-ipum[,vars][ipum[,vars] == -999999] <- -999
-ipum[,vars][ipum[,vars] == -9999999] <- -999
-
-ipum[,vars][ipum[,vars] == 9997] <- -999
-ipum[,vars][ipum[,vars] == 99997] <- -999
-ipum[,vars][ipum[,vars] == 999997] <- -999
-ipum[,vars][ipum[,vars] == 9999997] <- -999
-
-
-
+for var in vars:
+    ipum[var] = np.where(ipum[var].isna() or ipum[var].isin(MISSING_CODES), 0,
+                         ipum[var])
 
 # set 0's to NA for location
-
-ipum[ipum$momloc == 0,]$momloc <- NA
-ipum[ipum$poploc == 0,]$poploc <- NA
-ipum[ipum$sploc == 0,]$sploc <- NA
+COLS_ZERO_TO_NA = ['momloc', 'poploc', 'sploc']
+for col in COLS_ZERO_TO_NA:
+    ipum[col] = np.where(ipum[col] == 0, np.nan, ipum[col])
 
 
 # year before tax returns
-ipum$x2 <- ipum$year - 1
+ipum['x2'] = ipum.year - 1
 
 # set x3 to  fips code
-ipum$x3 <- ipum$statefip
+ipum['x3'] <- ipum.statefip
 
-# convert to soi
-
-source('FIPStoSOI.R')
+# convert to soi - TODO
+# source('FIPStoSOI.R')
 
 # /* Marital status will be sum of spouse's x4 values */
-ipum$x4 <- 1
+ipum['x4' = 1
 
 # if age > 65, x6 is 1
-ipum$x6 <- ifelse(ipum$age > 65, 1, 0)
+ipum['x6'] = np.where(ipum.age > 65, 1, 0)
 
 # primary wage or spouse wage
-ipum$x7 <- ifelse(ipum$sex==1, ipum$incwage + ipum$incbus + ipum$incfarm, 0)
-ipum$x8 <- ifelse(ipum$sex==2, ipum$incwage + ipum$incbus + ipum$incfarm, 0)
+ipum['incwagebusfarm'] = ipum[['incwage', 'incbus', 'incfarm']].sum(axis=1)
+ipum['x7'] = np.where(ipum.sex == 1, ipum.incwagebusfarm, 0)
+ipum['x8'] = np.where(ipum.sex == 2, ipum.incwagebusfarm, 0)
 
 
-ipum$x9 <- ipum$incdivid
-ipum$x10 <- ipum$incint + ipum$incrent + ipum$incother + ipum$incalim
-ipum$x11 <- ipum$incretir
-ipum$x12 <- ipum$incss
+ipum['x9'] = ipum.incdivid
+ipum['x10'] = ipum[['incint', 'incrent', 'incother', 'incalim']].sum(axis=1)
+ipum['x11'] = ipum.incretir
+ipum['x12'] = ipum.incss
 
 # /* Commented out got* items below because they are an error - 
 # hope to fix soon. drf, 
 # Nov18, 2015
 # */
-attach(ipum)
-ipum$x13 <- incwelfr+incwkcom+incvet+incsurv+incdisab+incchild+inceduc+
+ipum['x13'] <- ipum[['incwelfr', 'incwkcom', 'incvet', 'incsurv', 'incdisab',
+                     'incchild', 'inceduc', 'incssi', 'incasist']].sum(axis=1)
   # /*gotveduc+gotvothe+gotvpens+gotvsurv+*/ 
-  incssi+incasist
-detach(ipum)
 
-ipum$x14 <- 0
-ipum$x15 <- 0
+ipum['x14'] = 0
+ipum['x15'] = 0
 
 
 # /* use Census imputation of itemized deductions where available.*/
 # first have to join the exemption table
-names(pexemp)[1] <- 'x2'
+pexemp[1] <- 'x2'
 ipum <- join(ipum, pexemp, by='x2')
 
 # adjusted gross - taxes + exemptions
