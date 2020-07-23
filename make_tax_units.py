@@ -13,6 +13,8 @@ TODO:
    True for 2018.
 """
 
+COLS_ZERO_TO_NA = ['momloc', 'poploc', 'sploc']
+
 
 def tax_unit_id(ipum):
     """ Create a tax unit identifier for each person record in an IPUMS ASEC.
@@ -38,6 +40,8 @@ def tax_unit_id(ipum):
     """
     # Set to lower case
     ipum.columns = ipum.columns.str.lower()
+    for col in COLS_ZERO_TO_NA:
+        ipum[col] = np.where(ipum[col] == 0, np.nan, ipum[col])
     # Someone is a dependent if they have a depstat that isn't their spouse.
     ipum['is_dep'] = (ipum.depstat > 0) & (ipum.depstat != ipum.sploc)
     # Dependent children must be dependents with a parent who is below age 18,
