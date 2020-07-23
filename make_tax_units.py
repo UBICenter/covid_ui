@@ -1,6 +1,6 @@
 """ Makes tax units from the ASEC.
 
-Based on Sam Portnow's code at 
+Based on Sam Portnow's code at
 https://users.nber.org/~taxsim/to-taxsim/cps/cps-portnow/TaxSimRScriptForDan.R
 """
 import numpy as np
@@ -34,7 +34,7 @@ MISSING_CODES = [9999, 99999, 999999, 9999999,
 
 def prep_ipum(ipum):
     """ Prepares IPUMS person-level ASEC by setting columns between 0 and null.
-    
+
     Args:
         ipum: DataFrame representing person-level IPUMS ASEC.
 
@@ -88,7 +88,7 @@ def tax_unit_id(ipum):
         ipum.depchild, np.fmin(ipum.momloc, ipum.poploc),
         # Dependent relatives go to the head of household.
         np.where(ipum.deprel, 1,
-            # Taxpayers.
-            np.fmin(ipum.pernum, ipum.sploc)))
+                 # Taxpayers.
+                 np.fmin(ipum.pernum, ipum.sploc)))
     # Define identifier as 100 * serial (household) + tax unit sub-identifier
     ipum['taxid'] = 100 * ipum.serial + ipum.filer_pernum
