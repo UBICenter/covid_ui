@@ -1,30 +1,6 @@
 import numpy as np
 import pandas as pd
 
-# personal exemptions
-
-pexemp = pd.DataFrame({
-    'year': [2018],
-    'pexemp': [0]})
-
-
-# Set missing income items to zero so that non-filers etc will get zeroes.
-VARS_MISSING_ZERO = [
-    'eitcred', 'fedretir', 'fedtax', 'statetax', 'adjginc', 'taxinc',
-    'fedtaxac', 'fica', 'stataxac', 'incdivid', 'incint', 'incrent',
-    'incother', 'incasist', 'incss', 'incwelfr', 'incwkcom', 'incvet',
-    'incchild', 'incunemp', 'inceduc', 'gotveduc', 'gotvothe', 'gotvpens',
-    'gotvsurv', 'incssi', 'incwage', 'incbus', 'incfarm', 'incsurv',
-    'incdisab', 'incretir', 'inccapg']
-
-
-# these are the missing codes
-MISSING_CODES = [9999, 99999, 999999, 9999999,
-                 -9999, -99999, -999999, -9999999,
-                 9997, 99997, 999997, 9999997]
-
-COLS_ZERO_TO_NA = ['momloc', 'poploc', 'sploc']
-
 ASEC_TAXCALC_RENAMES = {
     'incunemp': 'e02300',
     'inccapg': 'p23250',
@@ -101,6 +77,12 @@ def create_tax_unit(tp):
          ])
     tu = tp.groupby(['filer_pernum', 'taxid', 'serial'])[SUMCOLS].sum()
     tu['EIC'] = np.minimum(tu.num_eitc_qualified_kids, 3)
-    tu['MARS'] = np.where(tu.age_spouse > 0,
-                           np.where(tu.is_dep > 0, 4, 1), 2)
+    # Define marital status:
+    # 1=single (no spouse or dependents)
+    # 2=joint (married)
+    # 3=separate (not identified in CPS)
+    # 4=household-head (no spouse, but with dependents)
+    # 5=widow(er) (not identified in CPS)
+    tu['MARS'] = np.where(tu.age_spouse == 0,  # i.e., spouse exists.
+                          np.where(tu.is_dep > 0, 4, 1), 2)
     return tu.reset_index()

@@ -15,6 +15,39 @@ TODO:
 
 COLS_ZERO_TO_NA = ['momloc', 'poploc', 'sploc']
 
+# Set missing income items to zero so that non-filers etc will get zeroes.
+COLS_MISSING_CODES_TO_ZERO = [
+    'eitcred', 'fedretir', 'fedtax', 'statetax', 'adjginc', 'taxinc',
+    'fedtaxac', 'fica', 'stataxac', 'incdivid', 'incint', 'incrent',
+    'incother', 'incasist', 'incss', 'incwelfr', 'incwkcom', 'incvet',
+    'incchild', 'incunemp', 'inceduc', 'gotveduc', 'gotvothe', 'gotvpens',
+    'gotvsurv', 'incssi', 'incwage', 'incbus', 'incfarm', 'incsurv',
+    'incdisab', 'incretir', 'inccapg']
+
+
+# Treat any of these as missing for any of the above columns.
+# TODO: Create a dictionary from each column to assign the right missing code.
+MISSING_CODES = [9999, 99999, 999999, 9999999,
+                 -9999, -99999, -999999, -9999999,
+                 9997, 99997, 999997, 9999997]
+
+
+def prep_ipum(ipum):
+    """ Prepares IPUMS person-level ASEC by setting columns between 0 and null.
+    
+    Args:
+        ipum: DataFrame representing person-level IPUMS ASEC.
+
+    Returns:
+        Nothing. Operations are performed inplace.
+    """
+    # Set to lower case
+    ipum.columns = ipum.columns.str.lower()
+    for col in COLS_ZERO_TO_NA:
+        ipum.loc[ipum[col] == 0, col] = np.nan
+    for col in COLS_MISSING_CODES_TO_ZERO:
+        ipum.loc[ipum[col].isna() | ipum[col].isin(MISSING_CODES), col] = 0
+
 
 def tax_unit_id(ipum):
     """ Create a tax unit identifier for each person record in an IPUMS ASEC.
@@ -38,10 +71,6 @@ def tax_unit_id(ipum):
         - taxid: Unique identifier for the filer, calculated as:
             100 * serial (household identifier) + filer_pernum.
     """
-    # Set to lower case
-    ipum.columns = ipum.columns.str.lower()
-    for col in COLS_ZERO_TO_NA:
-        ipum[col] = np.where(ipum[col] == 0, np.nan, ipum[col])
     # Someone is a dependent if they have a depstat that isn't their spouse.
     ipum['is_dep'] = (ipum.depstat > 0) & (ipum.depstat != ipum.sploc)
     # Dependent children must be dependents with a parent who is below age 18,
