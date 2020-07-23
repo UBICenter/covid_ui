@@ -5,8 +5,13 @@ https://users.nber.org/~taxsim/to-taxsim/cps/cps-portnow/TaxSimRScriptForDan.R
 """
 import numpy as np
 
-# https://cps.ipums.org/cps-action/variables/RELATE#codes_section
-RELATE_COHABITORS_NOT_MARRIED_CODE = 1114
+"""
+TODO:
+1) Verify that heads of household (relate=101) always have pernum = 1.
+   True for 2018.
+2) Verify that sploc is always null for cohabitors not married (relate=1114).
+   True for 2018.
+"""
 
 
 def tax_unit_id(ipum):
@@ -16,24 +21,25 @@ def tax_unit_id(ipum):
         ipum: DataFrame representing the ASEC file from IPUMS.
 
     Returns:
-        Series with a tax unit ID for each row in ipum.
-        This is the minimum of the pernum or sploc, so spouses will get the
-        same id. For children, it is the minimum of the momloc or poploc.
-        Other relatives are made dependent on the household head (which may be
-        incorrect) and non-relatives are separate tax units. 
+        Nothing. Adds the following columns:
+        - is_dep: Dependent of someone other than their spouse.
+        - depchild: Dependent whose parent is in their household and is either
+            under 18 or under 24 and in school.
+        - deprel: Dependent who is not a dependent child.
+        - filer_pernum: Person number of the filer.
+            This is the minimum of the pernum or sploc, so spouses will get the
+            same id. For children, it is the minimum of the momloc or poploc.
+            Other dependent relatives are assigned to the household head.
+            (TODO: Assign them to their claimant, or their claimant's filer
+            head). Non-relatives and relative non-dependents are separate tax
+            units.
+        - taxid: Unique identifier for the filer, calculated as:
+            100 * serial (household identifier) + filer_pernum.
     """
     # Set to lower case
     ipum.columns = ipum.columns.str.lower()
-    ipum.loc[ipum.relate == RELATE_COHABITORS_NOT_MARRIED_CODE,
-             'sploc'] = np.nan
-    # hnum is used for x.
-    ipum['hnum'] = np.where(ipum.relate == RELATE_HEAD_OF_HOUSEHOLD_CODE,
-                            ipum.pernum, np.nan)
-    # If someone is a dependent of their spouse, set dependent pointer to 0.
-    ipum.loc[~ipum.sploc.isna() & (ipum.depstat > 0) & 
-             (ipum.depstat == ipum.sploc), 'depstat'] = 0
-    # Someone is a dependent if they have a depstat.
-    ipum['is_dep'] = ipum.depstat > 0
+    # Someone is a dependent if they have a depstat that isn't their spouse.
+    ipum['is_dep'] = (ipum.depstat > 0) & (ipum.depstat != ipum.sploc)
     # Dependent children must be dependents with a parent who is below age 18,
     # or below age 24 if in school.
     ipum['depchild'] = np.where(
@@ -43,11 +49,13 @@ def tax_unit_id(ipum):
         1, 0)
     # Dependent relatives are dependents who are not dependent children.
     ipum['deprel'] = np.where(ipum.is_dep & (ipum.depchild == 0), 1, 0)
+    # Calculate line number within household of the filer.
+    ipum['filer_pernum'] = np.where(
+        # Dependent children go to their parent.
+        ipum.depchild, np.fmin(ipum.momloc, ipum.poploc),
+        # Dependent relatives go to the head of household.
+        np.where(ipum.deprel, 1,
+            # Taxpayers.
+            np.fmin(ipum.pernum, ipum.sploc)))
     # Define identifier as 100 * serial (household) + tax unit sub-identifier
-    tax_id = (100 * ipum.serial +
-              # Dependents
-              np.where(ipum.depchild, np.fmin(deps.momloc, deps.poploc),
-                       np.where(deps.deprel, deps.hnum,
-                                # Taxpayers.
-                                np.fmin(txpyrs.pernum, txpyrs.sploc))))
-    return tax_id
+    ipum['taxid'] = 100 * ipum.serial + ipum.filer_pernum
