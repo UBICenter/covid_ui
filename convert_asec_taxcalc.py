@@ -4,7 +4,6 @@ import pandas as pd
 ASEC_TAXCALC_RENAMES = {
     'incunemp': 'e02300',
     'inccapg': 'p23250',
-    # 'proptax': 'e18500',
     'incdivid': 'e00650',
     'incretir': 'e01700',
     'incss': 'e02400',
@@ -74,7 +73,8 @@ def create_tax_unit(tp):
          'age_head', 'age_spouse',
          'blind_head', 'blind_spouse'
          ])
-    tu = tp.groupby(['filer_pernum', 'taxid', 'serial'])[SUMCOLS].sum()
+    TAX_UNIT_IDS = ['FLPDYR', 'filer_pernum', 'taxid', 'serial']
+    tu = tp.groupby(TAX_UNIT_IDS)[SUMCOLS].sum().reset_index()
     tu['EIC'] = np.minimum(tu.num_eitc_qualified_kids, 3)
     # Define marital status:
     # 1=single (no spouse or dependents)
@@ -84,4 +84,6 @@ def create_tax_unit(tp):
     # 5=widow(er) (not identified in CPS)
     tu['MARS'] = np.where(tu.age_spouse == 0,  # i.e., spouse exists.
                           np.where(tu.is_dep > 0, 4, 1), 2)
+    # Calculate unique RECID (required for taxcalc) based on year and taxid.
+    tu['RECID'] = tu.FLPDYR * 1e9 + tu.taxid
     return tu.reset_index()
