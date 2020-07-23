@@ -52,9 +52,8 @@ def convert_asec_person_taxcalc(ipum):
     res['e00200p'] = np.where(res.is_filer_head, res._e00200, 0)
     res['e00200s'] = np.where(res.is_filer_spouse, res._e00200, 0)
     res['e00200'] = res.e00200p + res.e00200s
-    if 'diffeye' in res.columns:
-        res['blind_head'] = res.is_filer_head & (res.diffeye == 1)
-        res['blind_spouse'] = res.is_filer_spouse & (res.diffeye == 1)
+    res['blind_head'] = res.is_filer_head & (res.diffeye == 1)
+    res['blind_spouse'] = res.is_filer_spouse & (res.diffeye == 1)
     return res
     
 
@@ -73,7 +72,7 @@ def create_tax_unit(tp):
          'elderly_dependents', 'is_dep', 'nu18', 'n1820', 'n21',
          'e00200', 'e00200p', 'e00200s', 'e00600', 'e01500',
          'age_head', 'age_spouse',
-         #'blind_head', 'blind_spouse'
+         'blind_head', 'blind_spouse'
          ])
     tu = tp.groupby(['filer_pernum', 'taxid', 'serial'])[SUMCOLS].sum()
     tu['EIC'] = np.minimum(tu.num_eitc_qualified_kids, 3)
