@@ -55,7 +55,7 @@ def convert_asec_person_taxcalc(ipum):
     res['blind_head'] = res.is_filer_head & (res.diffeye == 1)
     res['blind_spouse'] = res.is_filer_spouse & (res.diffeye == 1)
     return res
-    
+
 
 def create_tax_unit(tp):
     """ Creates tax unit based on a taxcalc-prepared person file.
