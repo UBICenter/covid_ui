@@ -4,206 +4,50 @@ Based on Sam Portnow's code at
 https://users.nber.org/~taxsim/to-taxsim/cps/cps-portnow/TaxSimRScriptForDan.R
 """
 import numpy as np
-import pandas as pd
 
-# personal exemptions
-
-pexemp = pd.DataFrame({
-  'year': [2018],
-  'pexemp': [0]})
+# https://cps.ipums.org/cps-action/variables/RELATE#codes_section
+RELATE_COHABITORS_NOT_MARRIED_CODE = 1114
 
 
-ipum = pd.read_csv('~/UBICenter/covid_ui/asec_2019_ipums.csv.gz')
-# ipum = pd.read_csv('~/MaxGhenis/datarepo/asec_2019_ipums.csv.gz')
-# set to lower case
-ipum.columns = ipum.columns.str.lower()
+def tax_unit_id(ipum):
+    """ Create a tax unit identifier for each person record in an IPUMS ASEC.
 
-# /* Set missing income items to zero so that non-filers etc will get zeroes.*/
-# find out what statatax is and get it
-VARS_MISSING_ZERO =[
-    'eitcred', 'fedretir', 'fedtax', 'statetax', 'adjginc', 'taxinc',
-    'fedtaxac', 'fica', 'stataxac', 'incdivid', 'incint', 'incrent', 'incother',
-    'incasist', 'incss', 'incwelfr', 'incwkcom', 'incvet', 'incchild',
-    'incunemp', 'inceduc', 'gotveduc', 'gotvothe', 'gotvpens', 'gotvsurv',
-    'incssi', 'incwage', 'incbus', 'incfarm', 'incsurv', 'incdisab', 'incretir',
-    'inccapg']
+    Args:
+        ipum: DataFrame representing the ASEC file from IPUMS.
 
-
-# these are the missing codes
-MISSING_CODES = [9999, 99999, 999999, 9999999,
-                 -9999, -99999, -999999, -9999999,
-                 9997, 99997, 999997, 9999997]
-
-for var in VARS_MISSING_ZERO:
-    ipum[var] = np.where(ipum[var].isna() | ipum[var].isin(MISSING_CODES), 0,
-                         ipum[var])
-
-# set 0's to NA for location
-COLS_ZERO_TO_NA = ['momloc', 'poploc', 'sploc']
-for col in COLS_ZERO_TO_NA:
-    ipum[col] = np.where(ipum[col] == 0, np.nan, ipum[col])
-
-
-# year before tax returns
-ipum['x2'] = ipum.year - 1
-
-# set x3 to  fips code
-ipum['x3'] = ipum.statefip
-
-# convert to soi - TODO
-# source('FIPStoSOI.R')
-
-# Marital status will be sum of spouse's x4 values
-ipum['x4'] = 1
-
-# Cohabitators not married
-ipum.loc[ipum.relate == 1114, 'sploc'] = np.nan
-
-# x6 is just age for now
-ipum['x6'] = np.where(ipum.sploc.isna() | 
-                      ((ipum.sploc > 0) & (ipum.sploc > ipum.pernum)),
-                      ipum.age, 0)
-ipum['x24'] = np.where(~ipum.sploc.isna() & (ipum.sploc > 0) & 
-                       (ipum.sploc < ipum.pernum), ipum.age, 0)
-
-
-# primary wage or spouse wage
-ipum['incwagebusfarm'] = ipum[['incwage', 'incbus', 'incfarm']].sum(axis=1)
-ipum['x7'] = np.where(ipum.sploc.isna() | 
-                      ((ipum.sploc > 0) & (ipum.sploc > ipum.pernum)),
-                      ipum.incwagebusfarm, 0)
-ipum['x8'] = ipum.incwagebusfarm - ipum.x7
-
-
-ipum['x9'] = ipum.incdivid
-ipum['x10'] = ipum[['incrent', 'incother']].sum(axis=1)
-ipum['x11'] = ipum.incretir
-ipum['x12'] = ipum.incss
-ipum['x27'] = ipum.incint
-ipum['x28'] = 0
-
-# /* Commented out got* items below because they are an error - 
-# hope to fix soon. drf, 
-# Nov18, 2015
-# */
-ipum['x13'] = ipum[['incwelfr', 'incwkcom', 'incvet', 'incsurv', 'incdisab',
-                     'incchild', 'inceduc', 'incssi', 'incasist']].sum(axis=1)
-
-ipum['x14'] = ipum.incrent
-ipum['x15'] = 0
-
-
-# /* use Census imputation of itemized deductions where available.*/
-# first have to join the exemption table
-pexemp.rename(columns={'year': 'x2'}, inplace=True)
-ipum = ipum.merge(pexemp, on='x2')
-
-# adjusted gross - taxes + exemptions
-ipum['x16'] = (ipum.adjginc - 
-    ipum[['pexemp', 'statetax', 'taxinc']].sum(axis=1))
-# no values less than 0
-ipum['x16'] = np.where(ipum.x16 < 0, 0, ipum.x16)
-
-ipum['x17'] = 0
-ipum['x18'] = ipum.incunemp
-ipum['x19'] = 0
-ipum['x20'] = 0
-ipum['x21'] = 0
-
-# Assume inccapg is long term (caploss is no longer in IPUMS CPS)
-ipum['x22'] = ipum.inccapg
-
-
-# Here we output a record for each person, so that tax units can be formed 
-# later by summing over person records. The taxunit id is the minimum of
-# the pernum or sploc, so spouses will get the same id. For children
-# it is the minimum of the momloc or poploc. Other relatives are made
-# dependent on the household head (which may be incorrect) and non-relatives
-# are separate tax units. 
-# */
-
-ipum['hnum'] = 0
-ipum.hnum = np.where(ipum.relate==101, ipum.pernum, ipum.hnum)
-ipum.hnum.replace(0, np.nan)
-
-# if claiming > personal exemption than they're their own filer
-ipum['xsum'] = ipum[['x7', 'x8', 'x9', 'x10', 'x11', 'x12', 'x13',
-                     'x22']].sum(axis=1)
-ipum['notself'] = np.where(ipum.xsum <= ipum.pexemp, 1, 0)
-
-
-
-ipum.loc[~ipum.sploc.isna() & (ipum.depstat > 0) & (ipum.depstat == ipum.sploc),
-         'depstat'] = 0
-
-ipum['depchild'] = np.where(
-    (ipum.depstat > 1) &
-    (~ipum.momloc.isna() | ~ipum.poploc.isna()) &
-    (ipum[['momloc', 'poploc']].sum(axis=1) > 0) &
-    ((ipum.age < 18) | ((ipum.age < 24) & (ipum.schlcoll > 0))),
-    1, 0)
-
-ipum['deprel'] = np.where((ipum.depstat > 0) & (ipum.depchild == 0), 1, 0)
-ipum['dep13'] = np.where(((ipum.deprel == 1) | (ipum.depchild == 1)) & 
-                         (ipum.age < 13), 1, 0)
-ipum['dep17'] = np.where(((ipum.deprel == 1) | (ipum.depchild == 1)) & 
-                         (ipum.age < 17), 1, 0)
-ipum['dep18'] = np.where(((ipum.deprel == 1) | (ipum.depchild == 1)) & 
-                         (ipum.age < 18), 1, 0)
-
-# set dependents and taxpayers
-dpndnts = ipum[(ipum.depchild == 1) | (ipum.deprel == 1)]
-dpndnts['x1'] = np.where(dpndnts.depchild == 1,
-    100 * dpndnts.serial + np.minimum(dpndnts.momloc, dpndnts.poploc), 0)
-dpndnts.x1 = np.where(dpndnts.deprel == 1,
-    100 * dpndnts.serial + dpndnts.hnum, dpndnts.x1)
-
-dpndnts['x4'] = np.nan
-dpndnts['x5'] = 1
-dpndnts['x6'] = 0
-dpndnts['x19'] = np.nan
-dpndnts['x23'] = np.nan
-dpndnts['x24'] = 0
-
-txpyrs = ipum[(ipum.depchild == 0) & (ipum.deprel == 0)]
-txpyrs.x1 = 100 * txpyrs.serial + np.minimum(txpyrs.pernum, txpyrs.sploc)
-txpyrs.x5 = 0
-txpyrs.x23 = np.nan
-
-
-# set whats not x1, x2, or x5 in deps to NA
-vars = ['x' + str(i) for i in [3, 4, 27, 28] + list(range(6, 23))]
-dpndnts[vars] = np.nan
-
-# put them back together
-ipum = pd.concat([txpyrs, dpndnts])
-
-
-# sum value over tax #
-ipum['n'] = 1
-ipum.rename({'dep17': 'x25', 'dep18': 'x26'}, axis=1, inplace=True)
-
-concat_sum = ipum.groupby(['x2', 'x1'])[
-    ['n'] + ['x' + str(i) for i in list(range(3, 29))]].sum()
-concat_sum.x3 /= concat_sum.n
-# x6 and x24 should be max not sum, and n is no longer necessary.
-concat_sum.drop(['x6', 'x24', 'n'], axis=1, inplace=True)
-
-concat_max = ipum.groupby(['x2', 'x1'])['x6', 'x24'].max()
-concat_min = ipum.groupby(['x2', 'x1'])['serial', 'pernum'].min()
-concat_min.columns = ['x29', 'x30']
-
-concat = concat_sum.join(concat_max).join(concat_min).reset_index()
-
-concat = concat[(concat.x19 >= 0) & (concat.x4) > 0]
-
-concat = concat[['x' + str(i) for i in list(range(1, 31))]]
-
-concat.columns = ['taxsimid', 'year', 'state', 'mstat', 'depx', 'page',
-                  'pwages', 'swages', 'dividends', 'otherprop', 'pensions',
-                  'gssi', 'transfers', 'rentpaid', 'proptax', 'otheritem',
-                  'childcare', 'ui', 'depchild', 'mortgage', 'stcg', 'ltcg',
-                  'dep13', 'sage', 'dep17', 'dep18', 'intrec', 'nonprop',
-                  'serial', 'pernum']
-
-ids = concat[['taxsimid', 'serial', 'pernum']]
+    Returns:
+        Series with a tax unit ID for each row in ipum.
+        This is the minimum of the pernum or sploc, so spouses will get the
+        same id. For children, it is the minimum of the momloc or poploc.
+        Other relatives are made dependent on the household head (which may be
+        incorrect) and non-relatives are separate tax units. 
+    """
+    # Set to lower case
+    ipum.columns = ipum.columns.str.lower()
+    ipum.loc[ipum.relate == RELATE_COHABITORS_NOT_MARRIED_CODE,
+             'sploc'] = np.nan
+    # hnum is used for x.
+    ipum['hnum'] = np.where(ipum.relate == RELATE_HEAD_OF_HOUSEHOLD_CODE,
+                            ipum.pernum, np.nan)
+    # If someone is a dependent of their spouse, set dependent pointer to 0.
+    ipum.loc[~ipum.sploc.isna() & (ipum.depstat > 0) & 
+             (ipum.depstat == ipum.sploc), 'depstat'] = 0
+    # Someone is a dependent if they have a depstat.
+    ipum['is_dep'] = ipum.depstat > 0
+    # Dependent children must be dependents with a parent who is below age 18,
+    # or below age 24 if in school.
+    ipum['depchild'] = np.where(
+        ipum.is_dep &
+        (~ipum.momloc.isna() | ~ipum.poploc.isna()) &
+        ((ipum.age < 18) | ((ipum.age < 24) & (ipum.schlcoll > 0))),
+        1, 0)
+    # Dependent relatives are dependents who are not dependent children.
+    ipum['deprel'] = np.where(ipum.is_dep & (ipum.depchild == 0), 1, 0)
+    # Define identifier as 100 * serial (household) + tax unit sub-identifier
+    tax_id = (100 * ipum.serial +
+              # Dependents
+              np.where(ipum.depchild, np.fmin(deps.momloc, deps.poploc),
+                       np.where(deps.deprel, deps.hnum,
+                                # Taxpayers.
+                                np.fmin(txpyrs.pernum, txpyrs.sploc))))
+    return tax_id
