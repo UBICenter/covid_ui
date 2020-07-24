@@ -43,10 +43,11 @@ def prep_ipum(ipum):
     """
     # Set to lower case
     ipum.columns = ipum.columns.str.lower()
-    for col in COLS_ZERO_TO_NA:
+    for col in COLS_ZERO_TO_NA:  # All are necessary for tax unit formation.
         ipum.loc[ipum[col] == 0, col] = np.nan
     for col in COLS_MISSING_CODES_TO_ZERO:
-        ipum.loc[ipum[col].isna() | ipum[col].isin(MISSING_CODES), col] = 0
+        if col in ipum:
+            ipum.loc[ipum[col].isna() | ipum[col].isin(MISSING_CODES), col] = 0
 
 
 def tax_unit_id(ipum):
