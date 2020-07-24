@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Large files
+data/person.csv.gz
+data/spmu.csv.gz
