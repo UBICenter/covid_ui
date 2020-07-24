@@ -129,5 +129,5 @@ dmypy.json
 .pyre/
 
 # Large files
-data/person.csv.gz
-data/spmu.csv.gz
+data/person.feather
+data/spmu.feather
